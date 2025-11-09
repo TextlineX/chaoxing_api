@@ -16,13 +16,11 @@ if (missingVars.length > 0) {
     missingVars.forEach(varName => {
         console.error(`- ${varName}`);
     });
-    console.error('
-解决方案:');
+    console.error('\n解决方案:');
     console.error('1. 在Vercel控制台的"Settings > Environment Variables"中添加这些变量');
     console.error('2. 或使用Vercel CLI: vercel env add <变量名>');
     console.error('3. 重新部署应用: vercel --prod');
-    console.error('
-详细指南请参考: https://vercel.com/docs/concepts/projects/environment-variables');
+    console.error('\n详细指南请参考: https://vercel.com/docs/concepts/projects/environment-variables');
 
     // 创建一个简单的错误处理中间件
     const express = require('express');
