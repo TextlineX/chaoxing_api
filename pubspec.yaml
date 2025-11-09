@@ -1,0 +1,26 @@
+
+name: chaoxing
+description: A Flutter project demonstrating network requests.
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=2.18.0 <3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.3.2  # HTTP客户端
+  json_annotation: ^4.8.1  # JSON序列化注解
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  json_serializable: ^6.7.1  # JSON序列化代码生成
+  build_runner: ^2.4.6  # 代码生成工具
+
+flutter:
+  uses-material-design: true
