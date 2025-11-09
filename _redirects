@@ -1,0 +1,17 @@
+# Cloudflare Pages Redirects
+# This file contains redirect rules for your Cloudflare Pages site
+
+# API routes
+/api/* /api/:splat 200
+
+# Flutter API routes
+/flutter/* /flutter/:splat 200
+
+# Mobile API routes
+/mobile/* /mobile/:splat 200
+
+# File download routes
+/download/* /download/:splat 200
+
+# Default fallback for SPA (if needed)
+/* /index.html 200
