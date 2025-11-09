@@ -2,22 +2,22 @@
   "version": 2,
   "builds": [
     {
-      "src": "src/index.js",
+      "src": "src/api/index-vercel.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "src/index.js"
+      "dest": "src/api/index-vercel.js"
     },
     {
       "src": "/flutter/(.*)",
-      "dest": "src/index.js"
+      "dest": "src/api/index-vercel.js"
     },
     {
       "src": "/(.*)",
-      "dest": "src/index.js"
+      "dest": "src/api/index-vercel.js"
     }
   ]
 }

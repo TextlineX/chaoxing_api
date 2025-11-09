@@ -90,9 +90,5 @@ function startServer() {
     });
 }
 
-// 如果直接运行此文件，则启动服务器
-if (require.main === module) {
-    startServer();
-}
-
+// 导出应用实例
 module.exports = { app, startServer };
