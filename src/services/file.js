@@ -481,6 +481,88 @@ async function getUploadConfig(cookie, bbsid) {
     }
 }
 
+/**
+ * 从内存缓冲区上传文件
+ * @param {string} cookie - 用户Cookie
+ * @param {string} bbsid - 用户Bbsid
+ * @param {Buffer} buffer - 文件数据缓冲区
+ * @param {string} originalName - 原始文件名
+ * @param {string} dirId - 目标文件夹ID，默认为根目录
+ * @returns {Promise<Object>} 上传结果
+ */
+async function uploadFileFromBuffer(cookie, bbsid, buffer, originalName, dirId = '-1') {
+    if (!cookie || !bbsid || !buffer || !originalName) {
+        throw createParamError('Cookie、Bbsid、buffer和originalName不能为空');
+    }
+
+    try {
+        // 获取上传配置
+        const configResponse = await http.get(
+            `${config.DOWNLOAD_API}/pc/files/getUploadConfig`,
+            {},
+            cookie
+        );
+
+        if (configResponse.result !== 1) {
+            throw new Error(configResponse.msg || '获取上传配置失败');
+        }
+
+        const { puid, token } = configResponse.msg;
+        const mimeType = mime.lookup(originalName) || 'application/octet-stream';
+        const formData = new FormData();
+        formData.append('file', buffer, {
+            filename: originalName,
+            contentType: mimeType
+        });
+        formData.append('_token', token);
+        formData.append('puid', puid.toString());
+
+        // 上传文件
+        const uploadResponse = await http.post(
+            `${config.UPLOAD_API}/upload`,
+            formData,
+            cookie,
+            { ...formData.getHeaders() }
+        );
+
+        if (uploadResponse.msg !== 'success') {
+            throw new Error(uploadResponse.msg || '上传失败');
+        }
+
+        // 确认上传
+        // 确保param中的name字段使用原始文件名
+        const paramData = { ...uploadResponse.data };
+        if (paramData.name && originalName) {
+            // 使用原始文件名替换编码后的文件名
+            paramData.name = originalName;
+        }
+
+        const uploadDoneParam = {
+            key: uploadResponse.objectId,
+            cataid: '100000019',
+            param: paramData
+        };
+        const params = encodeURIComponent(JSON.stringify([uploadDoneParam]));
+
+        const addResponse = await http.get(
+            `${config.API_BASE}/pc/resource/addResource`,
+            { bbsid, pid: dirId, type: 'yunpan', params },
+            cookie
+        );
+
+        if (addResponse.result === 1) {
+            return {
+                message: '上传成功',
+                fileId: addResponse.id
+            };
+        } else {
+            throw new Error(addResponse.msg || '确认上传失败');
+        }
+    } catch (error) {
+        throw createServerError(`上传文件失败: ${error.message}`);
+    }
+}
+
 module.exports = {
     listFiles,
     downloadFile,
@@ -488,6 +570,7 @@ module.exports = {
     makeDir,
     uploadFile,
     uploadFileWithOriginalName,
+    uploadFileFromBuffer,
     deleteResource,
     getUploadConfig
 };

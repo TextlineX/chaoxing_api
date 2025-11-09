@@ -13,30 +13,40 @@ const dotenv = require('dotenv');
 // 加载环境变量
 dotenv.config();
 
-// 确保临时上传目录存在
-const fs = require('fs');
-const path = require('path');
-const tempDir = path.join(__dirname, '../../temp/uploads');
-if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-}
+// 检测是否在Serverless环境中运行
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
-// 临时文件存储配置
-const tempFileConfig = {
-    tempDir: path.join(__dirname, '../../temp/uploads'),
-    // 文件保留时间（毫秒），默认为2小时
-    retentionTime: 2 * 60 * 60 * 1000,
-    // 清理间隔（毫秒），默认为30分钟
-    cleanupInterval: 30 * 60 * 1000
-};
+// 在Serverless环境中，跳过所有文件系统初始化操作
+if (!isServerless) {
+    const fs = require('fs');
+    const path = require('path');
+    const tempDir = path.join(__dirname, '../../temp/uploads');
 
-// 启动定时清理任务
-setInterval(() => {
+    if (!fs.existsSync(tempDir)) {
+        try {
+            fs.mkdirSync(tempDir, { recursive: true });
+        } catch (error) {
+            console.warn('无法创建临时目录:', error.message);
+        }
+    }
+
+    // 临时文件存储配置
+    const tempFileConfig = {
+        tempDir: tempDir,
+        // 文件保留时间（毫秒），默认为2小时
+        retentionTime: 2 * 60 * 60 * 1000,
+        // 清理间隔（毫秒），默认为30分钟
+        cleanupInterval: 30 * 60 * 1000
+    };
+
+    // 启动定时清理任务
+    setInterval(() => {
+        cleanupTempFiles();
+    }, tempFileConfig.cleanupInterval);
+
+    // 立即执行一次清理
     cleanupTempFiles();
-}, tempFileConfig.cleanupInterval);
-
-// 立即执行一次清理
-cleanupTempFiles();
+}
 
 // 清理过期临时文件
 function cleanupTempFiles() {
@@ -84,8 +94,13 @@ function cleanDirectory(dirPath) {
 const router = express.Router();
 
 // 配置multer中间件
+// 在Serverless环境中使用内存存储，否则使用文件系统
+const storage = isServerless 
+    ? multer.memoryStorage() 
+    : { dest: 'temp/uploads/' };
+
 const upload = multer({
-    dest: 'temp/uploads/', // 临时文件存储目录
+    storage: storage,
     limits: {
         fileSize: 100 * 1024 * 1024 // 限制文件大小为100MB
     }
@@ -250,12 +265,18 @@ router.post('/api', upload.any(), async (req, res, next) => {
                     // 获取原始文件名（如果有）
                     const originalName = req.body.filename || uploadedFile.originalname || uploadedFile.name;
                     
-                    // 使用原始文件名和临时路径上传文件
-                    result = await fileService.uploadFileWithOriginalName(cookie, bbsid, uploadedFile.path, originalName, dirId);
+                    // 根据环境选择上传方式
+                    if (isServerless) {
+                        // 在Serverless环境中，使用内存中的文件数据
+                        result = await fileService.uploadFileFromBuffer(cookie, bbsid, uploadedFile.buffer, originalName, dirId);
+                    } else {
+                        // 在非Serverless环境中，使用文件路径
+                        result = await fileService.uploadFileWithOriginalName(cookie, bbsid, uploadedFile.path, originalName, dirId);
                     
-                    // 删除临时文件
-                    const fs = require('fs');
-                    fs.unlinkSync(uploadedFile.path);
+                        // 删除临时文件
+                        const fs = require('fs');
+                        fs.unlinkSync(uploadedFile.path);
+                    }
                 } else {
                     // 使用文件路径参数
                     const { filePath, dirId = '-1' } = params || {};
