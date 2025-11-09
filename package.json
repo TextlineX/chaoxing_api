@@ -1,6 +1,7 @@
 {
   "name": "chaoxing-api",
   "version": "1.0.0",
+  "type": "commonjs",
   "description": "超星学习通小组网盘 API 服务",
   "main": "src/index.js",
   "dependencies": {
