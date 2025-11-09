@@ -1,8 +1,8 @@
-# 朝星网盘API服务文档
+# 超星网盘API服务文档
 
 ## 项目简介
 
-朝星网盘API服务是一个基于Node.js和Express的后端服务，提供超星学习通小组网盘的API接口，支持文件上传、下载、列表查看、文件夹创建和文件移动等功能。该服务主要面向Flutter客户端，提供简洁易用的RESTful API。
+超星网盘API服务是一个基于Node.js和Express的后端服务，提供超星学习通小组网盘的API接口，支持文件上传、下载、列表查看、文件夹创建和文件移动等功能。该服务主要面向Flutter客户端，提供简洁易用的RESTful API。
 
 ## 功能特性
 
@@ -75,7 +75,7 @@ MOBILE_API_TOKEN=your_api_token_here   # 移动端API令牌
 {
   "action": "操作类型",
   "params": {
-    // 操作参数
+    
   }
 }
 ```

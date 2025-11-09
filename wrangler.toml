@@ -1,0 +1,36 @@
+# Cloudflare Workers configuration for Chaoxing API
+
+name = "chaoxing-api"
+main = "src/index.js"
+compatibility_date = "2023-05-18"
+
+[env.production]
+name = "chaoxing-api-prod"
+
+[env.staging]
+name = "chaoxing-api-staging"
+
+# Environment variables
+[vars]
+# Set your actual values in the Cloudflare dashboard or via wrangler secret
+# COOKIE = "your_cookie_here"
+# BBSID = "your_bbsid_here"
+# SIGNATURE_KEY = "your_signature_key_here"
+# MOBILE_API_TOKEN = "your_api_token_here"
+
+# KV namespace for caching (optional)
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "your_kv_namespace_id"
+preview_id = "your_preview_kv_namespace_id"
+
+# D1 database (optional)
+[[d1_databases]]
+binding = "DB"
+database_name = "chaoxing-db"
+database_id = "your_database_id"
+
+# R2 bucket for file storage (optional)
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "chaoxing-files"
