@@ -16,6 +16,15 @@ dotenv.config();
 // 检测是否在Serverless环境中运行
 const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
+// 临时文件存储配置
+const tempFileConfig = {
+    tempDir: 'temp/uploads',
+    // 文件保留时间（毫秒），默认为2小时
+    retentionTime: 2 * 60 * 60 * 1000,
+    // 清理间隔（毫秒），默认为30分钟
+    cleanupInterval: 30 * 60 * 1000
+};
+
 // 在Serverless环境中，跳过所有文件系统初始化操作
 if (!isServerless) {
     const fs = require('fs');
@@ -29,17 +38,11 @@ if (!isServerless) {
             console.warn('无法创建临时目录:', error.message);
         }
     }
+    
+    // 更新tempFileConfig.tempDir为绝对路径
+    tempFileConfig.tempDir = tempDir;
 
-    // 临时文件存储配置
-    const tempFileConfig = {
-        tempDir: tempDir,
-        // 文件保留时间（毫秒），默认为2小时
-        retentionTime: 2 * 60 * 60 * 1000,
-        // 清理间隔（毫秒），默认为30分钟
-        cleanupInterval: 30 * 60 * 1000
-    };
-
-    // 启动定时清理任务
+    // 启动定时清理任务（仅在非Serverless环境中）
     setInterval(() => {
         cleanupTempFiles();
     }, tempFileConfig.cleanupInterval);
@@ -50,6 +53,9 @@ if (!isServerless) {
 
 // 清理过期临时文件
 function cleanupTempFiles() {
+    // 在Serverless环境中跳过清理
+    if (isServerless) return;
+    
     try {
         console.log('开始清理过期临时文件...');
         
@@ -66,6 +72,12 @@ function cleanupTempFiles() {
 
 // 清理目录中的过期文件
 function cleanDirectory(dirPath) {
+    // 在非Serverless环境中才进行清理操作
+    if (isServerless) return;
+    
+    const fs = require('fs');
+    const path = require('path');
+    
     if (!fs.existsSync(dirPath)) return;
     
     const files = fs.readdirSync(dirPath);
@@ -76,7 +88,6 @@ function cleanDirectory(dirPath) {
         const stats = fs.statSync(filePath);
         
 
-            
         if (stats.isFile()) {
             // 检查文件是否过期
             if (now - stats.mtime.getTime() > tempFileConfig.retentionTime) {
@@ -97,7 +108,12 @@ const router = express.Router();
 // 在Serverless环境中使用内存存储，否则使用文件系统
 const storage = isServerless 
     ? multer.memoryStorage() 
-    : { dest: 'temp/uploads/' };
+    : multer.diskStorage({
+        destination: 'temp/uploads/',
+        filename: function (req, file, cb) {
+            cb(null, Date.now() + '-' + file.originalname);
+        }
+    });
 
 const upload = multer({
     storage: storage,
@@ -133,6 +149,41 @@ router.post('/get-download-url', async (req, res, next) => {
                 downloadUrl: result.downloadUrl,
                 fileName: result.fileName,
                 expires: result.expires
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * 获取上传配置
+ * POST /flutter/get-upload-config
+ * 无请求体
+ */
+router.post('/get-upload-config', async (req, res, next) => {
+    try {
+        const cookie = process.env.COOKIE;
+        const bbsid = process.env.BBSID;
+
+        if (!cookie || !bbsid) {
+            throw new ApiError('服务器配置错误：未设置Cookie和BBSID', 500, 'SERVER_ERROR');
+        }
+
+        // 获取上传配置
+        const configResult = await fileService.getUploadConfig(cookie, bbsid);
+        
+        // 返回上传所需的所有参数
+        res.json({
+            success: true,
+            data: {
+                uploadUrl: `${config.UPLOAD_API}/upload`, // 上传URL
+                puid: configResult.msg.puid,             // 用户ID
+                token: configResult.msg.token,           // 上传令牌
+                headers: {
+                    'User-Agent': config.HEADERS.USER_AGENT,
+                    'Referer': config.HEADERS.REFERER
+                }
             }
         });
     } catch (error) {
@@ -693,6 +744,25 @@ router.get('/docs', (req, res) => {
                         }
                     }
                 ]
+            },
+            {
+                path: '/get-upload-config',
+                method: 'POST',
+                description: '获取文件上传配置参数',
+                headers: {},
+                body: {},
+                response: {
+                    success: true,
+                    data: {
+                        uploadUrl: '上传URL',
+                        puid: '用户ID',
+                        token: '上传令牌',
+                        headers: {
+                            'User-Agent': '用户代理',
+                            'Referer': 'Referer头'
+                        }
+                    }
+                }
             }
         ],
         response_format: {
