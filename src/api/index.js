@@ -4,13 +4,25 @@
  */
 
 const express = require('express');
-const fileRoutes = require('./file');
+const chaoxingPresigned = require('./chaoxing-presigned');
+const fileApi = require('./file');
+const flutterApi = require('./flutter');
+const mobileApi = require('./mobile');
+const mobileMoveApi = require('./mobile-move');
+const vercelIndex = require('./index-vercel');
+const authApi = require('./auth');
 const { ApiError } = require('../utils/error');
 
 const router = express.Router();
 
-// 注册文件API路由
-router.use('/files', fileRoutes);
+// 注册各模块路由
+router.use('/chaoxing-presigned', chaoxingPresigned);
+router.use('/file', fileApi);
+router.use('/flutter', flutterApi);
+router.use('/mobile', mobileApi);
+router.use('/mobile-move', mobileMoveApi);
+router.use('/vercel', vercelIndex);
+router.use('/auth', authApi);
 
 // API错误处理中间件
 router.use((err, req, res, next) => {

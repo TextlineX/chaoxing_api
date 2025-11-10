@@ -1,6 +1,15 @@
 /.idea
+/.vscode
 /download
+/temp
 /node_modules
+/data
 .env
-package.json
-package-lock.json
+.env.local
+.env.development
+.env.production
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db

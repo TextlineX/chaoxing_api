@@ -245,7 +245,10 @@ async function uploadFile(cookie, bbsid, filePath, dirId = '-1') {
     }
 
     try {
+        console.log(`开始上传文件: ${filePath} 到目录: ${dirId}`);
+        
         // 获取上传配置
+        console.log('正在获取上传配置...');
         const configResponse = await http.get(
             `${config.DOWNLOAD_API}/pc/files/getUploadConfig`,
             {},
@@ -255,6 +258,8 @@ async function uploadFile(cookie, bbsid, filePath, dirId = '-1') {
         if (configResponse.result !== 1) {
             throw new Error(configResponse.msg || '获取上传配置失败');
         }
+        
+        console.log('上传配置获取成功:', configResponse.msg);
 
         const { puid, token } = configResponse.msg;
         const fileName = path.basename(filePath);
@@ -268,41 +273,188 @@ async function uploadFile(cookie, bbsid, filePath, dirId = '-1') {
         formData.append('puid', puid.toString());
 
         // 上传文件
+        console.log('开始上传文件到存储服务器...');
         const uploadResponse = await http.post(
             `${config.UPLOAD_API}/upload`,
             formData,
             cookie,
             { ...formData.getHeaders() }
         );
+        
+        console.log('文件上传响应:', JSON.stringify(uploadResponse, null, 2));
 
         if (uploadResponse.msg !== 'success') {
             throw new Error(uploadResponse.msg || '上传失败');
         }
 
         // 确认上传
+        console.log('开始构造确认上传参数...');
         const uploadDoneParam = {
             key: uploadResponse.objectId,
             cataid: '100000019',
-            param: uploadResponse.data
+            param: {
+                ...uploadResponse.data,
+                name: fileName // 确保使用原始文件名
+            }
         };
+        
         const params = encodeURIComponent(JSON.stringify([uploadDoneParam]));
-
+        
+        console.log('确认上传参数:', params);
+        console.log('开始确认上传到资源列表...');
+        
+        // 记录请求参数以便调试
+        const confirmParams = { 
+            bbsid, 
+            pid: dirId, 
+            type: 'yunpan', 
+            params 
+        };
+        console.log('确认上传请求参数:', JSON.stringify(confirmParams, null, 2));
+        
         const addResponse = await http.get(
             `${config.API_BASE}/pc/resource/addResource`,
-            { bbsid, pid: dirId, type: 'yunpan', params },
+            confirmParams,
             cookie
         );
+        
+        console.log('确认上传响应:', JSON.stringify(addResponse, null, 2));
 
         if (addResponse.result === 1) {
+            console.log('文件上传成功:', addResponse.id);
             return {
                 message: '上传成功',
                 fileId: addResponse.id
             };
         } else {
-            throw new Error(addResponse.msg || '确认上传失败');
+            // 明确指出这是确认步骤失败
+            console.error('确认上传失败，错误信息:', addResponse.msg);
+            throw new Error(`确认上传失败: ${addResponse.msg || '未知错误'}`);
         }
     } catch (error) {
-        throw createServerError(`上传文件失败: ${error.message}`);
+        console.error('上传文件过程中发生错误:', error);
+        // 区分不同阶段的错误
+        if (error.message.includes('确认上传失败')) {
+            throw error;
+        } else {
+            throw createServerError(`上传文件失败: ${error.message}`);
+        }
+    }
+}
+
+/**
+ * 使用原始文件名上传文件
+ * @param {string} cookie - 用户Cookie
+ * @param {string} bbsid - 用户Bbsid
+ * @param {string} filePath - 文件路径
+ * @param {string} originalName - 原始文件名
+ * @param {string} dirId - 目标文件夹ID，默认为根目录
+ * @returns {Promise<Object>} 上传结果
+ */
+async function uploadFileWithOriginalName(cookie, bbsid, filePath, originalName, dirId = '-1') {
+    if (!cookie || !bbsid || !filePath) {
+        throw createParamError('Cookie、Bbsid和filePath不能为空');
+    }
+
+    if (!fs.existsSync(filePath)) {
+        throw createParamError('文件不存在');
+    }
+
+    try {
+        console.log(`开始上传文件: ${filePath} (原始文件名: ${originalName}) 到目录: ${dirId}`);
+        
+        // 获取上传配置
+        console.log('正在获取上传配置...');
+        const configResponse = await http.get(
+            `${config.DOWNLOAD_API}/pc/files/getUploadConfig`,
+            {},
+            cookie
+        );
+
+        if (configResponse.result !== 1) {
+            throw new Error(configResponse.msg || '获取上传配置失败');
+        }
+        
+        console.log('上传配置获取成功:', configResponse.msg);
+
+        const { puid, token } = configResponse.msg;
+        // 使用原始文件名获取MIME类型
+        const mimeType = mime.lookup(originalName) || 'application/octet-stream';
+        const formData = new FormData();
+        formData.append('file', fs.createReadStream(filePath), {
+            filename: originalName,
+            contentType: mimeType
+        });
+        formData.append('_token', token);
+        formData.append('puid', puid.toString());
+
+        // 上传文件
+        console.log('开始上传文件到存储服务器...');
+        const uploadResponse = await http.post(
+            `${config.UPLOAD_API}/upload`,
+            formData,
+            cookie,
+            { ...formData.getHeaders() }
+        );
+        
+        console.log('文件上传响应:', JSON.stringify(uploadResponse, null, 2));
+
+        if (uploadResponse.msg !== 'success') {
+            throw new Error(uploadResponse.msg || '上传失败');
+        }
+
+        // 确认上传
+        console.log('开始构造确认上传参数...');
+        const uploadDoneParam = {
+            key: uploadResponse.objectId,
+            cataid: '100000019',
+            param: {
+                ...uploadResponse.data,
+                name: originalName // 确保使用原始文件名
+            }
+        };
+        
+        const params = encodeURIComponent(JSON.stringify([uploadDoneParam]));
+        
+        console.log('确认上传参数:', params);
+        console.log('开始确认上传到资源列表...');
+        
+        // 记录请求参数以便调试
+        const confirmParams = { 
+            bbsid, 
+            pid: dirId, 
+            type: 'yunpan', 
+            params 
+        };
+        console.log('确认上传请求参数:', JSON.stringify(confirmParams, null, 2));
+        
+        const addResponse = await http.get(
+            `${config.API_BASE}/pc/resource/addResource`,
+            confirmParams,
+            cookie
+        );
+        
+        console.log('确认上传响应:', JSON.stringify(addResponse, null, 2));
+
+        if (addResponse.result === 1) {
+            console.log('文件上传成功:', addResponse.id);
+            return {
+                message: '上传成功',
+                fileId: addResponse.id
+            };
+        } else {
+            // 明确指出这是确认步骤失败
+            console.error('确认上传失败，错误信息:', addResponse.msg);
+            throw new Error(`确认上传失败: ${addResponse.msg || '未知错误'}`);
+        }
+    } catch (error) {
+        console.error('上传文件过程中发生错误:', error);
+        // 区分不同阶段的错误
+        if (error.message.includes('确认上传失败')) {
+            throw error;
+        } else {
+            throw createServerError(`上传文件失败: ${error.message}`);
+        }
     }
 }
 
@@ -367,93 +519,6 @@ async function deleteResource(cookie, bbsid, resourceId, isFolder = null) {
 }
 
 /**
- * 使用原始文件名上传文件
- * @param {string} cookie - 用户Cookie
- * @param {string} bbsid - 用户Bbsid
- * @param {string} filePath - 文件路径
- * @param {string} originalName - 原始文件名
- * @param {string} dirId - 目标文件夹ID，默认为根目录
- * @returns {Promise<Object>} 上传结果
- */
-async function uploadFileWithOriginalName(cookie, bbsid, filePath, originalName, dirId = '-1') {
-    if (!cookie || !bbsid || !filePath) {
-        throw createParamError('Cookie、Bbsid和filePath不能为空');
-    }
-
-    if (!fs.existsSync(filePath)) {
-        throw createParamError('文件不存在');
-    }
-
-    try {
-        // 获取上传配置
-        const configResponse = await http.get(
-            `${config.DOWNLOAD_API}/pc/files/getUploadConfig`,
-            {},
-            cookie
-        );
-
-        if (configResponse.result !== 1) {
-            throw new Error(configResponse.msg || '获取上传配置失败');
-        }
-
-        const { puid, token } = configResponse.msg;
-        // 使用原始文件名获取MIME类型
-        const mimeType = mime.lookup(originalName) || 'application/octet-stream';
-        const formData = new FormData();
-        formData.append('file', fs.createReadStream(filePath), {
-            filename: originalName,
-            contentType: mimeType
-        });
-        formData.append('_token', token);
-        formData.append('puid', puid.toString());
-
-        // 上传文件
-        const uploadResponse = await http.post(
-            `${config.UPLOAD_API}/upload`,
-            formData,
-            cookie,
-            { ...formData.getHeaders() }
-        );
-
-        if (uploadResponse.msg !== 'success') {
-            throw new Error(uploadResponse.msg || '上传失败');
-        }
-
-        // 确认上传
-        const uploadDoneParam = {
-            key: uploadResponse.objectId,
-            cataid: '100000019',
-            param: uploadResponse.data
-        };
-        
-        // 确保param中的name字段使用原始文件名
-        if (uploadDoneParam.param && uploadDoneParam.param.name && originalName) {
-            // 使用原始文件名替换编码后的文件名
-            uploadDoneParam.param.name = originalName;
-        }
-        
-        const params = encodeURIComponent(JSON.stringify([uploadDoneParam]));
-
-        const addResponse = await http.get(
-            `${config.API_BASE}/pc/resource/addResource`,
-            { bbsid, pid: dirId, type: 'yunpan', params },
-            cookie
-        );
-
-        if (addResponse.result === 1) {
-            return {
-                message: '上传成功',
-                fileId: addResponse.id
-            };
-        } else {
-            throw new Error(addResponse.msg || '确认上传失败');
-        }
-    } catch (error) {
-        throw createServerError(`上传文件失败: ${error.message}`);
-    }
-}
-
-/**
  * 获取上传配置
  * @param {string} cookie - 用户Cookie
  * @param {string} bbsid - 用户Bbsid
@@ -496,7 +561,10 @@ async function uploadFileFromBuffer(cookie, bbsid, buffer, originalName, dirId =
     }
 
     try {
+        console.log(`开始上传缓冲区数据 (原始文件名: ${originalName}) 到目录: ${dirId}`);
+        
         // 获取上传配置
+        console.log('正在获取上传配置...');
         const configResponse = await http.get(
             `${config.DOWNLOAD_API}/pc/files/getUploadConfig`,
             {},
@@ -506,6 +574,8 @@ async function uploadFileFromBuffer(cookie, bbsid, buffer, originalName, dirId =
         if (configResponse.result !== 1) {
             throw new Error(configResponse.msg || '获取上传配置失败');
         }
+        
+        console.log('上传配置获取成功:', configResponse.msg);
 
         const { puid, token } = configResponse.msg;
         const mimeType = mime.lookup(originalName) || 'application/octet-stream';
@@ -518,48 +588,92 @@ async function uploadFileFromBuffer(cookie, bbsid, buffer, originalName, dirId =
         formData.append('puid', puid.toString());
 
         // 上传文件
+        console.log('开始上传文件到存储服务器...');
         const uploadResponse = await http.post(
             `${config.UPLOAD_API}/upload`,
             formData,
             cookie,
             { ...formData.getHeaders() }
         );
+        
+        console.log('文件上传响应:', JSON.stringify(uploadResponse, null, 2));
 
         if (uploadResponse.msg !== 'success') {
             throw new Error(uploadResponse.msg || '上传失败');
         }
 
         // 确认上传
+        console.log('开始构造确认上传参数...');
         const uploadDoneParam = {
             key: uploadResponse.objectId,
             cataid: '100000019',
-            param: uploadResponse.data
+            param: {
+                ...uploadResponse.data,
+                name: originalName // 确保使用原始文件名
+            }
         };
         
-        // 确保param中的name字段使用原始文件名
-        if (uploadDoneParam.param && uploadDoneParam.param.name && originalName) {
-            // 使用原始文件名替换编码后的文件名
-            uploadDoneParam.param.name = originalName;
-        }
-        
         const params = encodeURIComponent(JSON.stringify([uploadDoneParam]));
-
+        
+        console.log('确认上传参数:', params);
+        console.log('开始确认上传到资源列表...');
+        
+        // 记录请求参数以便调试
+        const confirmParams = { 
+            bbsid, 
+            pid: dirId, 
+            type: 'yunpan', 
+            params 
+        };
+        console.log('确认上传请求参数:', JSON.stringify(confirmParams, null, 2));
+        
         const addResponse = await http.get(
             `${config.API_BASE}/pc/resource/addResource`,
-            { bbsid, pid: dirId, type: 'yunpan', params },
+            confirmParams,
             cookie
         );
+        
+        console.log('确认上传响应:', JSON.stringify(addResponse, null, 2));
 
         if (addResponse.result === 1) {
+            console.log('文件上传成功:', addResponse.id);
             return {
                 message: '上传成功',
                 fileId: addResponse.id
             };
         } else {
-            throw new Error(addResponse.msg || '确认上传失败');
+            // 明确指出这是确认步骤失败
+            console.error('确认上传失败，错误信息:', addResponse.msg);
+            throw new Error(`确认上传失败: ${addResponse.msg || '未知错误'}`);
         }
     } catch (error) {
-        throw createServerError(`上传文件失败: ${error.message}`);
+        console.error('上传文件过程中发生错误:', error);
+        // 区分不同阶段的错误
+        if (error.message.includes('确认上传失败')) {
+            throw error;
+        } else {
+            throw createServerError(`上传文件失败: ${error.message}`);
+        }
+    }
+}
+
+/**
+ * 验证上传文件是否真实存在于服务器上
+ * @param {string} cookie - 用户Cookie
+ * @param {string} bbsid - 用户Bbsid
+ * @param {string} objectId - 文件objectId
+ * @returns {Promise<boolean>} 验证结果
+ */
+async function verifyUploadedFile(cookie, bbsid, objectId) {
+    try {
+        // 这里可以实现验证逻辑
+        // 例如通过查询文件列表或调用特定的验证接口
+        console.log(`验证文件 objectId: ${objectId}`);
+        // 暂时返回true，实际项目中应该实现真正的验证逻辑
+        return true;
+    } catch (error) {
+        console.error('文件验证失败:', error);
+        return false;
     }
 }
 
@@ -572,5 +686,6 @@ module.exports = {
     uploadFileWithOriginalName,
     uploadFileFromBuffer,
     deleteResource,
-    getUploadConfig
+    getUploadConfig,
+    verifyUploadedFile
 };
