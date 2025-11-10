@@ -420,18 +420,18 @@ async function uploadFileWithOriginalName(cookie, bbsid, filePath, originalName,
         }
 
         // 确认上传
-        // 确保param中的name字段使用原始文件名
-        const paramData = { ...uploadResponse.data };
-        if (paramData.name && originalName) {
-            // 使用原始文件名替换编码后的文件名
-            paramData.name = originalName;
-        }
-
         const uploadDoneParam = {
             key: uploadResponse.objectId,
             cataid: '100000019',
-            param: paramData
+            param: uploadResponse.data
         };
+        
+        // 确保param中的name字段使用原始文件名
+        if (uploadDoneParam.param && uploadDoneParam.param.name && originalName) {
+            // 使用原始文件名替换编码后的文件名
+            uploadDoneParam.param.name = originalName;
+        }
+        
         const params = encodeURIComponent(JSON.stringify([uploadDoneParam]));
 
         const addResponse = await http.get(
@@ -530,18 +530,18 @@ async function uploadFileFromBuffer(cookie, bbsid, buffer, originalName, dirId =
         }
 
         // 确认上传
-        // 确保param中的name字段使用原始文件名
-        const paramData = { ...uploadResponse.data };
-        if (paramData.name && originalName) {
-            // 使用原始文件名替换编码后的文件名
-            paramData.name = originalName;
-        }
-
         const uploadDoneParam = {
             key: uploadResponse.objectId,
             cataid: '100000019',
-            param: paramData
+            param: uploadResponse.data
         };
+        
+        // 确保param中的name字段使用原始文件名
+        if (uploadDoneParam.param && uploadDoneParam.param.name && originalName) {
+            // 使用原始文件名替换编码后的文件名
+            uploadDoneParam.param.name = originalName;
+        }
+        
         const params = encodeURIComponent(JSON.stringify([uploadDoneParam]));
 
         const addResponse = await http.get(
